@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "dataset-cat"
+version = "0.0.1"
+description = "A tool for fetching and organizing anime datasets for training."
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/your-repo/dataset-cat"
+repository = "https://github.com/your-repo/dataset-cat"
+keywords = ["anime", "dataset", "fetcher", "training"]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<4.0"
+gradio = "*"
+waifuc = { git = "https://github.com/deepghs/waifuc.git", branch = "main" }
+
+[tool.poetry.scripts]
+dataset-cat-webui = "dataset_cat.webui:launch_webui"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
+
+
+
+
+
