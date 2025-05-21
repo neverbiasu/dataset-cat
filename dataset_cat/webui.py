@@ -103,6 +103,15 @@ def export_data(
 
     for item in source:
         exporter.export_item(item)
+        if save_meta:
+            # 保存作者信息到与图片同名的文本文件
+            author = item.meta.get("author", "Unknown")
+            image_name = item.meta.get("filename", "unknown").rsplit(".", 1)[0]
+            with open(
+                f"{output_dir}/{image_name}.txt", "w", encoding="utf-8"
+            ) as meta_file:
+                meta_file.write(f"Author: {author}\n")
+
     return "Data exported successfully."
 
 
