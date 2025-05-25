@@ -17,60 +17,47 @@ from waifuc.source import (
 )
 from waifuc.action import NoMonochromeAction, FilterSimilarAction
 from waifuc.export import SaveExporter, TextualInversionExporter, HuggingFaceExporter
+from dataset_cat.crawler import Crawler
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-# 数据源选择函数
+# 数据源列表
+SOURCE_LIST = [
+    "Danbooru",
+    "Zerochan",
+    "Safebooru",
+    "Gelbooru",
+    "WallHaven",
+    "Konachan",
+    "KonachanNet",
+    "Lolibooru",
+    "Yande",
+    "Rule34",
+    "HypnoHub",
+    "Paheal",
+    "AnimePictures",
+    "Duitang",
+]
+
+# 更新数据源选择函数
 def get_sources():
-    return [
-        "Danbooru",
-        "Zerochan",
-        "Safebooru",
-        "Gelbooru",
-        "WallHaven",
-        "Konachan",
-        "KonachanNet",
-        "Lolibooru",
-        "Yande",
-        "Rule34",
-        "HypnoHub",
-        "Paheal",
-        "AnimePictures",
-        "Duitang",
-    ]
+    return Crawler.get_sources()
 
 
-# 爬取任务函数
+# 更新爬取任务函数
 def start_crawl(source_name, tags, limit, size, strict):
-    source_mapping = {
-        "Danbooru": lambda: DanbooruSource(tags=tags.split(","), min_size=size),
-        "Zerochan": lambda: ZerochanSource(tags, select=size, strict=strict),
-        "Safebooru": lambda: SafebooruSource(tags=tags.split(","), min_size=size),
-        "Gelbooru": lambda: GelbooruSource(tags=tags.split(","), min_size=size),
-        "WallHaven": lambda: WallHavenSource(query=tags, select=size),
-        "Konachan": lambda: KonachanSource(tags=tags.split(","), min_size=size),
-        "KonachanNet": lambda: KonachanNetSource(tags=tags.split(","), min_size=size),
-        "Lolibooru": lambda: LolibooruSource(tags=tags.split(","), min_size=size),
-        "Yande": lambda: YandeSource(tags=tags.split(","), min_size=size),
-        "Rule34": lambda: Rule34Source(tags=tags.split(","), min_size=size),
-        "HypnoHub": lambda: HypnoHubSource(tags=tags.split(","), min_size=size),
-        "Paheal": lambda: PahealSource(tags=tags.split(",")),
-        "AnimePictures": lambda: AnimePicturesSource(tags=tags.split(",")),
-        "Duitang": lambda: DuitangSource(keyword=tags, strict=strict),
-    }
-
-    if source_name in source_mapping:
-        source = source_mapping[source_name]()
-        source = source[:limit]
-        return source, "Crawl task initialized."
-    else:
-        return None, f"Unsupported source: {source_name}"
+    return Crawler.start_crawl(source_name, tags, limit, size, strict)
 
 
 # 数据处理函数
 def apply_actions(source, actions):
-    if "NoMonochrome" in actions:
+    if "NoMonochrome" in actions and hasattr(source, "attach"):
         source = source.attach(NoMonochromeAction())
-    if "FilterSimilar" in actions:
+    if "FilterSimilar" in actions and hasattr(source, "attach"):
         source = source.attach(FilterSimilarAction())
     return source
 
@@ -130,13 +117,21 @@ def launch_webui():
         hf_repo,
         hf_token,
     ):
+        logger.info(f"Starting crawl with source: {source_name}, tags: {tags}")
         source, message = start_crawl(source_name, tags, limit, size, strict)
         if source is None:
+            logger.error(f"Crawl failed: {message}")
             return message
+
+        logger.info(f"Crawl succeeded. Number of items: {len(source)}")
+        logger.info(f"Exporting data to: {output_dir}")
+
         source = apply_actions(source, actions)
         result = export_data(
             source, output_dir, save_meta, exporter_type, hf_repo, hf_token
         )
+
+        logger.info(f"Export result: {result}")
         return result
 
     with gr.Blocks() as demo:
