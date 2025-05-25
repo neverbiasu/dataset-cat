@@ -21,9 +21,6 @@ dataset-cat-webui = "dataset_cat.webui:launch_webui"
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-
-
-
-
-
-
+[tool.poetry.dev-dependencies]
+pytest = "*"
+pytest-mock = "*"
