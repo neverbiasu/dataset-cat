@@ -1,0 +1,4 @@
+waifuc @ git+https://github.com/deepghs/waifuc.git@main
+gallery-dl
+pillow
+opencv-python
