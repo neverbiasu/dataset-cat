@@ -52,12 +52,28 @@ class Crawler:
     # 添加超时和重试逻辑
     @staticmethod
     def start_crawl(source_name: str, tags: str, limit: int, size: Optional[str], strict: bool) -> Tuple[Optional[list], str]:
+        proxies = {}
+        if os.getenv('HTTP_PROXY'):
+            proxies['http'] = os.getenv('HTTP_PROXY')
+        if os.getenv('HTTPS_PROXY'):
+            proxies['https'] = os.getenv('HTTPS_PROXY')
+
+        session = requests.Session()
+        session.proxies.update(proxies)
+
         source_mapping = {
             "Danbooru": lambda: DanbooruSource(tags=tags.split(","), min_size=limit),
-            "Zerochan": lambda: ZerochanSource(tags, select=size, strict=strict),
+            "Zerochan": lambda: ZerochanSource(
+                tags,
+                select=size,
+                strict=strict
+            ),
             "Safebooru": lambda: SafebooruSource(tags=tags.split(","), min_size=limit),
             "Gelbooru": lambda: GelbooruSource(tags=tags.split(","), min_size=limit),
-            "WallHaven": lambda: WallHavenSource(query=tags, select=size),
+            "WallHaven": lambda: WallHavenSource(
+                query=tags, 
+                select=size if size in ['original', 'thumbnail'] else 'original'
+            ),
             "Konachan": lambda: KonachanSource(tags=tags.split(","), min_size=limit),
             "KonachanNet": lambda: KonachanNetSource(tags=tags.split(","), min_size=limit),
             "Lolibooru": lambda: LolibooruSource(tags=tags.split(","), min_size=limit),
@@ -67,7 +83,7 @@ class Crawler:
             "Paheal": lambda: PahealSource(tags=tags.split(",")),
             "AnimePictures": lambda: AnimePicturesSource(tags=tags.split(",")),
             "Duitang": lambda: DuitangSource(keyword=tags, strict=strict),
-            "Pixiv": lambda: PixivSearchSource(tags=tags.split(","), select=size),
+            "Pixiv": lambda: PixivSearchSource(query=tags, select=size),
             "Derpibooru": lambda: DerpibooruSource(tags=tags.split(","), select=size),
         }
 
