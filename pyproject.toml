@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dataset-cat"
-version = "0.0.2"
+version = "0.0.5"
 description = "A tool for fetching and organizing anime datasets for training."
 authors = ["Your Name <your.email@example.com>"]
 license = "MIT"
