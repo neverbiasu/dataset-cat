@@ -11,7 +11,9 @@
 
 ### 产品设计文档
 
-- [DatasetFetcher](../product/dataset-fetcher.md): 数据抓取逻辑的产品设计文档。
+- [DatasetFetcher](product/dataset-fetcher.md): 数据抓取逻辑的产品设计文档。
+- [基础爬取功能 WebUI 设计文档](product/webui.md): WebUI 的产品设计文档。
+- [数据后处理 UI 产品设计文档](product/postprocessing_ui.md): 数据后处理 UI 的产品设计文档。
 - DatasetProcessor: 待补充。
 - DatasetExporter: 待补充。
 - WebUIManager: 待补充。
@@ -19,6 +21,8 @@
 ### 开发设计文档
 
 - [DatasetFetcher](develop/dataset-fetcher.md): 数据抓取逻辑的开发设计文档。
+- [基础爬取功能 WebUI 开发设计文档](develop/webui.md): WebUI 的开发设计文档。
+- [数据后处理 UI 开发设计文档](develop/postprocessing_ui.md): 数据后处理 UI 的开发设计文档。
 - DatasetProcessor: 待补充。
 - DatasetExporter: 待补充。
 - WebUIManager: 待补充。
