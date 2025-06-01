@@ -47,9 +47,7 @@ logger = logging.getLogger(__name__)
 class Crawler:
     @staticmethod
     def get_sources():
-        return SOURCE_LIST
-
-    # 添加超时和重试逻辑
+        return SOURCE_LIST    # 添加超时和重试逻辑
     @staticmethod
     def start_crawl(source_name: str, tags: str, limit: int, size: Optional[str], strict: bool) -> Tuple[Optional[list], str]:
         proxies = {}
@@ -61,11 +59,27 @@ class Crawler:
         session = requests.Session()
         session.proxies.update(proxies)
 
+        # Size mapping for different sources
+        def get_zerochan_select(size_param):
+            """Map UI size options to Zerochan's valid select options"""
+            # Handle legacy mapping for backward compatibility
+            size_mapping = {
+                'Original': 'full',
+                'Large': 'large', 
+                'Medium': 'medium',
+                'Small': 'medium'  # fallback to medium for small
+            }
+            # If already using correct values, return as-is
+            if size_param in ['full', 'large', 'medium']:
+                return size_param
+            # Otherwise use mapping
+            return size_mapping.get(size_param, 'large')  # default to 'large'
+
         source_mapping = {
             "Danbooru": lambda: DanbooruSource(tags=tags.split(","), min_size=limit),
             "Zerochan": lambda: ZerochanSource(
                 tags,
-                select=size,
+                select=get_zerochan_select(size),
                 strict=strict
             ),
             "Safebooru": lambda: SafebooruSource(tags=tags.split(","), min_size=limit),
