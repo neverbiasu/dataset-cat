@@ -1,9 +1,11 @@
+import logging
+
 import gradio as gr
-from waifuc.action import NoMonochromeAction, FilterSimilarAction
-from waifuc.export import SaveExporter, TextualInversionExporter, HuggingFaceExporter
+
 from dataset_cat.crawler import Crawler
 from dataset_cat.postprocessing_ui import create_postprocessing_tab_content
-import logging
+from waifuc.action import FilterSimilarAction, NoMonochromeAction
+from waifuc.export import HuggingFaceExporter, SaveExporter, TextualInversionExporter
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -16,7 +18,13 @@ SIZE_OPTIONS_MAP = {
     "Zerochan": ["full", "large", "medium"],  # Zerochan valid select options: full, large, medium
     "Safebooru": ["Original", "Large", "Medium", "Small"],
     "Gelbooru": ["Original", "Large", "Medium", "Small"],
-    "WallHaven": ["Original", "1920x1080", "2560x1440", "3840x2160", "Custom"], # Wallhaven supports various resolutions
+    "WallHaven": [
+        "Original",
+        "1920x1080",
+        "2560x1440",
+        "3840x2160",
+        "Custom",
+    ],  # Wallhaven supports various resolutions
     "Konachan": ["Original", "Large", "Medium", "Small"],
     "KonachanNet": ["Original", "Large", "Medium", "Small"],
     "Lolibooru": ["Original", "Large", "Medium", "Small"],
@@ -24,8 +32,8 @@ SIZE_OPTIONS_MAP = {
     "Rule34": ["Original", "Large", "Medium", "Small"],
     "HypnoHub": ["Original", "Large", "Medium", "Small"],
     "Paheal": ["Original", "Large", "Medium", "Small"],
-    "AnimePictures (Broken)": [], # No options for broken source
-    "Duitang": ["Original", "Large", "Medium", "Small"], # Duitang is more about collections
+    "AnimePictures (Broken)": [],  # No options for broken source
+    "Duitang": ["Original", "Large", "Medium", "Small"],  # Duitang is more about collections
     "Pixiv": ["original", "large", "medium", "square_medium"],
     "Derpibooru": ["full", "large", "medium", "small", "thumb"],
 }
@@ -66,8 +74,9 @@ SOURCE_LIST = [
     "AnimePictures (Broken)",  # Marked as broken
     "Duitang",
     "Pixiv",
-    "Derpibooru"
+    "Derpibooru",
 ]
+
 
 # 更新数据源选择函数
 def get_sources():
@@ -89,9 +98,7 @@ def apply_actions(source, actions):
 
 
 # 导出函数
-def export_data(
-    source, output_dir, save_meta, exporter_type, hf_repo=None, hf_token=None
-):
+def export_data(source, output_dir, save_meta, exporter_type, hf_repo=None, hf_token=None):
     if exporter_type == "SaveExporter":
         exporter = SaveExporter(
             output_dir=output_dir,
@@ -120,9 +127,7 @@ def export_data(
             # 保存作者信息到与图片同名的文本文件
             author = item.meta.get("author", "Unknown")
             image_name = item.meta.get("filename", "unknown").rsplit(".", 1)[0]
-            with open(
-                f"{output_dir}/{image_name}.txt", "w", encoding="utf-8"
-            ) as meta_file:
+            with open(f"{output_dir}/{image_name}.txt", "w", encoding="utf-8") as meta_file:
                 meta_file.write(f"Author: {author}\n")
 
     return "Data exported successfully."
@@ -153,9 +158,7 @@ def launch_webui():
         logger.info(f"Exporting data to: {output_dir}")
 
         source = apply_actions(source, actions)
-        result = export_data(
-            source, output_dir, save_meta, exporter_type, hf_repo, hf_token
-        )
+        result = export_data(source, output_dir, save_meta, exporter_type, hf_repo, hf_token)
 
         logger.info(f"Export result: {result}")
         return result
@@ -169,31 +172,25 @@ def launch_webui():
                 initial_source = available_sources[0] if available_sources else None
 
                 with gr.Row():
-                    source_name = gr.Dropdown(
-                        choices=available_sources,
-                        value=initial_source,
-                        label="Data Source"
-                    )
+                    source_name = gr.Dropdown(choices=available_sources, value=initial_source, label="Data Source")
                     tags = gr.Textbox(label="Tags (comma-separated)")
 
                 initial_sizes_for_dropdown = []
                 initial_value_for_size_dropdown = None
                 if initial_source:
                     initial_sizes_for_dropdown = SIZE_OPTIONS_MAP.get(initial_source, [])
-                    if initial_sizes_for_dropdown: # If there are size options for the initial source
+                    if initial_sizes_for_dropdown:  # If there are size options for the initial source
                         desired_initial_default_size = DEFAULT_SIZE_MAP.get(initial_source)
                         if desired_initial_default_size in initial_sizes_for_dropdown:
                             initial_value_for_size_dropdown = desired_initial_default_size
                         else:
-                            initial_value_for_size_dropdown = initial_sizes_for_dropdown[0] # Fallback to first
+                            initial_value_for_size_dropdown = initial_sizes_for_dropdown[0]  # Fallback to first
                 # If initial_sizes_for_dropdown is empty, initial_value_for_size_dropdown remains None
 
                 with gr.Row():
                     limit = gr.Slider(1, 100, value=10, step=1, label="Limit")
                     size = gr.Dropdown(
-                        choices=initial_sizes_for_dropdown,
-                        value=initial_value_for_size_dropdown,
-                        label="Image Size"
+                        choices=initial_sizes_for_dropdown, value=initial_value_for_size_dropdown, label="Image Size"
                     )
                     strict = gr.Checkbox(label="Strict Mode (Zerochan only)")
                 actions = gr.CheckboxGroup(["NoMonochrome", "FilterSimilar"], label="Actions")
@@ -209,20 +206,20 @@ def launch_webui():
 
                 # Update size options based on the selected source
                 def update_size_options(selected_source_name):
-                    sizes = SIZE_OPTIONS_MAP.get(selected_source_name, []) # Default to [] if source not in map
-                    
+                    sizes = SIZE_OPTIONS_MAP.get(selected_source_name, [])  # Default to [] if source not in map
+
                     actual_value_for_dropdown = None
-                    if sizes: # If there are any choices for this source
-                        desired_default_from_map = DEFAULT_SIZE_MAP.get(selected_source_name) # Might be None
+                    if sizes:  # If there are any choices for this source
+                        desired_default_from_map = DEFAULT_SIZE_MAP.get(selected_source_name)  # Might be None
                         if desired_default_from_map in sizes:
                             actual_value_for_dropdown = desired_default_from_map
                         else:
                             # If desired default is not in sizes (or is None), pick the first available size
-                            actual_value_for_dropdown = sizes[0] 
+                            actual_value_for_dropdown = sizes[0]
                     # If sizes is empty, actual_value_for_dropdown remains None
 
                     return gr.update(choices=sizes, value=actual_value_for_dropdown)
-                
+
                 source_name.change(
                     update_size_options,
                     inputs=[source_name],

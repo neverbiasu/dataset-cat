@@ -1,26 +1,37 @@
+"""Dataset crawler module for fetching images from various sources.
+
+This module provides a unified interface for crawling images from different
+anime image sources using the waifuc library.
+"""
+
+import logging
+import os
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import requests
+
+from dataset_cat.core.utils import ensure_directory, format_time_elapsed, setup_logging
 from waifuc.source import (
-    DanbooruSource,
-    ZerochanSource,
-    SafebooruSource,
-    GelbooruSource,
-    WallHavenSource,
-    KonachanSource,
-    KonachanNetSource,
-    LolibooruSource,
-    YandeSource,
-    Rule34Source,
-    HypnoHubSource,
-    PahealSource,
     AnimePicturesSource,
-    DuitangSource,
-    PixivSearchSource,
+    DanbooruSource,
     DerpibooruSource,
+    DuitangSource,
+    GelbooruSource,
+    HypnoHubSource,
+    KonachanNetSource,
+    KonachanSource,
+    LolibooruSource,
+    PahealSource,
+    PixivSearchSource,
+    Rule34Source,
+    SafebooruSource,
+    WallHavenSource,
+    YandeSource,
+    ZerochanSource,
 )
 from waifuc.utils.download import download_file
-import logging
-from typing import Tuple, Optional
-import requests
-import os
 
 # 数据源列表
 SOURCE_LIST = [
@@ -44,17 +55,21 @@ SOURCE_LIST = [
 
 logger = logging.getLogger(__name__)
 
+
 class Crawler:
     @staticmethod
     def get_sources():
-        return SOURCE_LIST    # 添加超时和重试逻辑
+        return SOURCE_LIST  # 添加超时和重试逻辑
+
     @staticmethod
-    def start_crawl(source_name: str, tags: str, limit: int, size: Optional[str], strict: bool) -> Tuple[Optional[list], str]:
+    def start_crawl(
+        source_name: str, tags: str, limit: int, size: Optional[str], strict: bool
+    ) -> Tuple[Optional[list], str]:
         proxies = {}
-        if os.getenv('HTTP_PROXY'):
-            proxies['http'] = os.getenv('HTTP_PROXY')
-        if os.getenv('HTTPS_PROXY'):
-            proxies['https'] = os.getenv('HTTPS_PROXY')
+        if os.getenv("HTTP_PROXY"):
+            proxies["http"] = os.getenv("HTTP_PROXY")
+        if os.getenv("HTTPS_PROXY"):
+            proxies["https"] = os.getenv("HTTPS_PROXY")
 
         session = requests.Session()
         session.proxies.update(proxies)
@@ -64,29 +79,24 @@ class Crawler:
             """Map UI size options to Zerochan's valid select options"""
             # Handle legacy mapping for backward compatibility
             size_mapping = {
-                'Original': 'full',
-                'Large': 'large', 
-                'Medium': 'medium',
-                'Small': 'medium'  # fallback to medium for small
+                "Original": "full",
+                "Large": "large",
+                "Medium": "medium",
+                "Small": "medium",  # fallback to medium for small
             }
             # If already using correct values, return as-is
-            if size_param in ['full', 'large', 'medium']:
+            if size_param in ["full", "large", "medium"]:
                 return size_param
             # Otherwise use mapping
-            return size_mapping.get(size_param, 'large')  # default to 'large'
+            return size_mapping.get(size_param, "large")  # default to 'large'
 
         source_mapping = {
             "Danbooru": lambda: DanbooruSource(tags=tags.split(","), min_size=limit),
-            "Zerochan": lambda: ZerochanSource(
-                tags,
-                select=get_zerochan_select(size),
-                strict=strict
-            ),
+            "Zerochan": lambda: ZerochanSource(tags, select=get_zerochan_select(size), strict=strict),
             "Safebooru": lambda: SafebooruSource(tags=tags.split(","), min_size=limit),
             "Gelbooru": lambda: GelbooruSource(tags=tags.split(","), min_size=limit),
             "WallHaven": lambda: WallHavenSource(
-                query=tags, 
-                select=size if size in ['original', 'thumbnail'] else 'original'
+                query=tags, select=size if size in ["original", "thumbnail"] else "original"
             ),
             "Konachan": lambda: KonachanSource(tags=tags.split(","), min_size=limit),
             "KonachanNet": lambda: KonachanNetSource(tags=tags.split(","), min_size=limit),
@@ -135,7 +145,7 @@ class Crawler:
 
         for item in source:
             url = item[1]  # Assuming the second element is the URL
-            filename = os.path.join(output_dir, item[2]['filename'])  # Metadata contains the filename
+            filename = os.path.join(output_dir, item[2]["filename"])  # Metadata contains the filename
 
             try:
                 logger.info(f"Starting download: {url} -> {filename}")
