@@ -40,6 +40,19 @@ ruff = "*" # Add ruff
 line-length = 120
 target-version = ["py38", "py39", "py310", "py311"]
 include = '\.pyi?$'
+exclude = '''
+/(
+    \\.git
+    | \\.hg
+    | \\.mypy_cache
+    | \\.tox
+    | \\.venv
+    | \\.eggs
+    | buck-out
+    | build
+    | dist
+    | waifuc
+)/'''
 
 # isort configuration
 [tool.isort]
@@ -50,6 +63,7 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
+extend_skip_glob = ["waifuc/**"] # Skip files in waifuc directory
 
 # MyPy configuration
 [tool.mypy]
@@ -66,6 +80,7 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+exclude = ["waifuc/.*"] # Exclude waifuc directory from type checking
 
 # Ignore missing imports for external libraries
 [[tool.mypy.overrides]]
@@ -90,6 +105,28 @@ ignore = ["E402", "E501", "E701", "E704", "W503", "E203"]
 select = ["E", "F", "W", "C90", "I"] # Standard: Pyflakes, pycodestyle, McCabe, isort
 line-length = 120
 target-version = "py38"
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "waifuc" # Added waifuc
+]
 
 [tool.ruff.lint]
 # Add specific rules or configurations if needed
