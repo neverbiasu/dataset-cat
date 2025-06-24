@@ -6,6 +6,5 @@ This package provides tools to fetch, process, and publish anime-related dataset
 __version__ = "0.0.5"
 
 from dataset_cat.crawler import Crawler
-from dataset_cat.webui import launch_webui
 
-__all__ = ["Crawler", "launch_webui"]
+__all__ = ["Crawler"]
