@@ -6,7 +6,7 @@ This module provides helper functions for common tasks across the application.
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 from PIL import Image
@@ -151,10 +151,60 @@ def format_time_elapsed(seconds: float) -> str:
     return " ".join(parts)
 
 
+def convert_tag_for_source(
+    tag: Union[str, List[str]],
+    source: str,
+    zh2en_dict: Optional[Dict[str, str]] = None,
+) -> List[str]:
+    """Convert input tag(s) to the appropriate search keywords for a given imageboard source.
+
+    This function standardizes tags for different booru sources (e.g., danbooru, safebooru, e621).
+    It also supports basic Chinese-to-English tag translation (can be extended with a dictionary or API).
+
+    Args:
+        tag: The input tag or list of tags (can be English or Chinese)
+        source: The target source name (e.g., 'danbooru', 'safebooru', 'e621')
+        zh2en_dict: Optional dictionary for Chinese-to-English tag translation
+
+    Returns:
+        List of tags/keywords suitable for the target source
+
+    Raises:
+        ValueError: If the source is not supported
+    """
+    # Always work with a list of tags
+    if isinstance(tag, str):
+        tags = [tag]
+    else:
+        tags = tag
+
+    # Step 1: Translate Chinese tags to English if needed
+    def zh2en(single_tag: str) -> str:
+        # Simple dictionary-based translation; can be replaced with API or more advanced logic
+        if zh2en_dict and single_tag in zh2en_dict:
+            return zh2en_dict[single_tag]
+        # TODO: Integrate with a real translation service or expand dictionary
+        return single_tag
+
+    tags = [zh2en(t) for t in tags]
+
+    # Step 2: Source-specific tag adaptation
+    source = source.lower()
+    if source in {"danbooru", "safebooru", "yandere", "konachan", "lolibooru"}:
+        # Danbooru-like: tags are space-separated, lowercase, underscores for spaces
+        return [t.replace(" ", "_").lower() for t in tags]
+    elif source in {"e621", "e926"}:
+        # e621: tags are also space-separated, lowercase, underscores for spaces
+        return [t.replace(" ", "_").lower() for t in tags]
+    else:
+        raise ValueError(f"Unsupported source: {source}")
+
+
 __all__ = [
     "setup_logging",
     "ensure_directory",
     "list_image_files",
     "calculate_image_statistics",
     "format_time_elapsed",
+    "convert_tag_for_source",
 ]
