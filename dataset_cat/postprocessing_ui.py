@@ -53,8 +53,8 @@ def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -
 
     with gr.Column():
         with gr.Row():
-            input_dir = gr.Textbox(label=_get_localized("input_dir_label", "输入目录"))
-            output_dir = gr.Textbox(label=_get_localized("output_dir_post_label", "输出目录"))
+            input_dir = gr.Textbox(label=_get_localized("input_dir_label", "输入目录"), interactive=True)
+            output_dir = gr.Textbox(label=_get_localized("output_dir_post_label", "输出目录"), interactive=True)
             components["input_dir"] = input_dir
             components["output_dir"] = output_dir
 
@@ -134,13 +134,14 @@ def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -
             input_directory: str,
             output_directory: str,
             selected_actions: List[str],
-            min_size_val: Optional[int],
-            max_size_val: Optional[int],
-            mode_val: Optional[str],
-            quality_val: Optional[int],
-            divisible_by_val: Optional[int],
-            min_filesize_val: Optional[int],
-            max_filesize_val: Optional[int],
+            min_size_val: Optional[int] = None,
+            max_size_val: Optional[int] = None,
+            mode_val: Optional[str] = None,
+            quality_val: Optional[int] = None,
+            divisible_by_val: Optional[int] = None,
+            min_filesize_val: Optional[int] = None,
+            max_filesize_val: Optional[int] = None,
+            *args, **kwargs
         ) -> str:
             """
             Process images in the input directory, applying selected actions and saving to output directory.
@@ -164,10 +165,13 @@ def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -
             os.makedirs(output_directory, exist_ok=True)
             # Find all image files in input directory
             exts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif']
-            files = []
+            # Only collect unique files (avoid duplicates from upper/lower case)
+            file_set = set()
             for ext in exts:
-                files.extend(Path(input_directory).glob(f"**/*{ext}"))
-                files.extend(Path(input_directory).glob(f"**/*{ext.upper()}"))
+                file_set.update(Path(input_directory).glob(f"**/*{ext}"))
+                file_set.update(Path(input_directory).glob(f"**/*{ext.upper()}"))
+            files = list(file_set)
+            print("Found files:", files)
             processed_count = 0
 
             # Map localized labels back to action keys
@@ -185,6 +189,7 @@ def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -
                 elif key == 'compress_image' and quality_val:
                     pipeline.append(ImageCompressionAction(quality_val))
                 elif key == 'crop_to_divisible' and divisible_by_val:
+                    # Fix: CropToDivisibleAction 需要传递 Image 对象，且部分实现可能会返回 None
                     pipeline.append(CropToDivisibleAction(int(divisible_by_val)))
                 elif key == 'filter_filesize' and (min_filesize_val is not None or max_filesize_val is not None):
                     pipeline.append(FileSizeFilterAction(int(min_filesize_val or 0), int(max_filesize_val or 0)))
@@ -193,21 +198,57 @@ def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -
             for path in files:
                 try:
                     img = Image.open(path)
+                    filtered = False
                     for action in pipeline:
-                        # Apply each action; actions may modify or filter image
-                        img = action.apply(img) if hasattr(action, 'apply') else action(img)
+                        try:
+                            # Special handling for CropToDivisibleAction: expects ImageItem, returns ImageItem
+                            if isinstance(action, CropToDivisibleAction):
+                                img_item = ImageItem(img)
+                                img_item = action(img_item)
+                                img = img_item.image if img_item is not None else None
+                            else:
+                                img = action.apply(img) if hasattr(action, 'apply') else action(img)
+                        except Exception as e:
+                            print(f"Action {action} failed on {path}: {e}")
+                            filtered = True
+                            break
                         if img is None:
-                            raise ValueError("Image filtered out")
+                            filtered = True
+                            break
+                    if filtered:
+                        continue
                     # Save processed image
                     save_name = Path(path).name
                     img.save(Path(output_directory) / save_name)
                     processed_count += 1
-                except Exception:
-                    # Skip failures or filtered images
+                except Exception as e:
+                    print(f"Failed to process {path}: {e}")
                     continue
 
             # Return summary message
             return _get_localized("processing_completed", "处理完成。{count} 张图片处理完毕。").format(count=processed_count)
+    preview_btn.click(
+        preview_images,
+        inputs=[input_dir],
+        outputs=result,
+        show_progress=True,
+    )
+    process_btn.click(
+        process_images,
+        inputs=[
+            input_dir,
+            output_dir,
+            actions,
+            min_size,
+            max_size,
+            mode,
+            quality,
+            divisible_by,
+            min_filesize,
+            max_filesize,
+        ],
+        outputs=result,
+    )
     return components
 
 
