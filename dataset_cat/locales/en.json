@@ -43,5 +43,27 @@
     "preview_result": "Preview: {count} images found in directory",
     "no_images_found": "No images found in directory",
     "processing_completed": "Processing completed. {count} images processed.",
-    "processing_failed": "Processing failed: {error}"
+    "processing_failed": "Processing failed: {error}",
+    
+    "tag_translator_tab": "Tag Translator",
+    "tag_translator_title": "Chinese Tag Translator",
+    "tag_translator_desc": "Translate Chinese descriptions into English tags and format them according to data source types.",
+    "description_label": "Chinese Description",
+    "description_placeholder": "e.g., 初音未来",
+    "target_source_label": "Target Data Source",
+    "source_info": "Booru-type sources will use underscore format",
+    "translate_button": "Translate",
+    "clear_button": "Clear",
+    "status_label": "Status",
+    "examples_title": "Examples",
+    "examples_booru": "Booru Data Source Examples",
+    "examples_other": "Other Data Source Examples",
+    "input_text": "Input",
+    "output_text": "Output",
+    "error_empty_description": "Please enter a Chinese description to translate",
+    "success_message": "Translation successful!",
+    "booru_format_info": "Booru format: lowercase + underscores",
+    "other_format_info": "Normal format: preserve spaces",
+    "error_prefix": "Error",
+    "unknown_error": "Unknown error"
 }

@@ -7,6 +7,7 @@ import gradio as gr
 
 from dataset_cat.crawler import Crawler
 from dataset_cat.postprocessing_ui import create_postprocessing_tab_content, update_postprocessing_ui_language
+from dataset_cat.tag_translator_ui import create_tag_translator_tab_content, update_tag_translator_ui_language
 from waifuc.action import FilterSimilarAction, NoMonochromeAction
 from waifuc.export import HuggingFaceExporter, SaveExporter, TextualInversionExporter
 
@@ -296,6 +297,9 @@ def launch_webui():
                 )
             with gr.TabItem("数据后处理") as postproc_tab:
                 postproc_components = create_postprocessing_tab_content(locale=locales.get("zh", {}))
+            
+            with gr.TabItem("标签翻译") as tag_translator_tab:
+                tag_translator_components = create_tag_translator_tab_content(locale=locales.get("zh", {}))
         def switch_language(lang):
             locale_data = locales.get(lang, {})
             # Prepare updated content and labels via gr.update
@@ -323,7 +327,9 @@ def launch_webui():
             ]
             # Apply post-processing UI updates
             post_updates = update_postprocessing_ui_language(postproc_components, locale_data)
-            return updates + post_updates
+            # Apply tag translator UI updates
+            tag_translator_updates = update_tag_translator_ui_language(tag_translator_components, locale_data)
+            return updates + post_updates + tag_translator_updates
         # Bind language switch
         language_selector.change(
             switch_language,
@@ -333,7 +339,7 @@ def launch_webui():
                 src_dropdown, tags_input, limit_slider, size_dropdown,
                 strict_checkbox, actions_group, output_dir_input, save_meta_checkbox, save_author_checkbox,
                 exporter_dropdown, hf_repo_input, hf_token_input, start_button, result_output
-            ] + list(postproc_components.values())
+            ] + list(postproc_components.values()) + list(tag_translator_components.values())
         )
         demo.launch(inbrowser=True)
 if __name__ == '__main__':

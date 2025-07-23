@@ -43,5 +43,27 @@
     "preview_result": "预览：在目录中找到 {count} 张图片",
     "no_images_found": "在目录中未找到图片",
     "processing_completed": "处理完成。共处理 {count} 张图片。",
-    "processing_failed": "处理失败：{error}"
+    "processing_failed": "处理失败：{error}",
+    
+    "tag_translator_tab": "标签翻译",
+    "tag_translator_title": "中文标签翻译器",
+    "tag_translator_desc": "将中文描述翻译为英文标签，并根据数据源类型自动格式化。",
+    "description_label": "中文描述",
+    "description_placeholder": "例如：初音未来",
+    "target_source_label": "目标数据源",
+    "source_info": "Booru类型源将使用下划线格式",
+    "translate_button": "翻译",
+    "clear_button": "清空",
+    "status_label": "状态",
+    "examples_title": "示例",
+    "examples_booru": "Booru 数据源示例",
+    "examples_other": "其他数据源示例",
+    "input_text": "输入",
+    "output_text": "输出",
+    "error_empty_description": "请输入要翻译的中文描述",
+    "success_message": "翻译成功！",
+    "booru_format_info": "Booru格式：小写+下划线",
+    "other_format_info": "普通格式：保持空格",
+    "error_prefix": "错误",
+    "unknown_error": "未知错误"
 }
