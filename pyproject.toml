@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "dataset-cat"
-version = "0.0.6"
+version = "0.0.7"
 description = "A tool for fetching and organizing anime datasets for training."
-authors = ["Your Name <your.email@example.com>"]
+authors = ["neverbiasu neverbiasu@gmail.com]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/your-repo/dataset-cat"
-repository = "https://github.com/your-repo/dataset-cat"
+homepage = "https://github.com/neverbiasu/dataset-cat"
+repository = "https://github.com/neverbiasu/dataset-cat"
 keywords = ["anime", "dataset", "fetcher", "training"]
 
 [tool.poetry.dependencies]
