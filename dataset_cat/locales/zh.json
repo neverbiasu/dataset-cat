@@ -54,7 +54,7 @@
     "source_info": "Booru类型源将使用下划线格式",
     "translate_button": "翻译",
     "clear_button": "清空",
-    "status_label": "状态",
+    "translation_output_label": "翻译结果",
     "examples_title": "示例",
     "examples_booru": "Booru 数据源示例",
     "examples_other": "其他数据源示例",

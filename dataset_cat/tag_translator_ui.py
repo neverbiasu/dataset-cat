@@ -7,6 +7,7 @@ This module provides Gradio UI components for the Tag Translator functionality.
 import gradio as gr
 from typing import Dict, Any
 from .tag_translator_api import TagTranslatorAPI
+from .tag_translator import TagTranslator
 
 
 def create_tag_translator_tab_content(locale: Dict[str, str] = None) -> Dict[str, Any]:
@@ -55,6 +56,13 @@ def create_tag_translator_tab_content(locale: Dict[str, str] = None) -> Dict[str
                     info=locale.get('source_info', 'Booru类型源将使用下划线格式')
                 )
         
+        # Add a dropdown to select translation method
+        method_selector = gr.Dropdown(
+            choices=["jikan", "googletrans"],
+            value="jikan",
+            label=locale.get('method_selector_label', '选择翻译方法')
+        )
+
         # Action buttons
         with gr.Row():
             translate_button = gr.Button(
@@ -69,17 +77,13 @@ def create_tag_translator_tab_content(locale: Dict[str, str] = None) -> Dict[str
         # Output components
         with gr.Row():
             with gr.Column():
-                result_output = gr.Textbox(
-                    label=locale.get('result_label', '翻译结果'),
+                translation_output = gr.Textbox(
+                    label=locale.get('translation_output_label', '翻译结果'),
                     interactive=False,
-                    lines=1
+                    lines=2,
+                    show_copy_button=True
                 )
-                status_output = gr.Textbox(
-                    label=locale.get('status_label', '状态'),
-                    interactive=False,
-                    lines=2
-                )
-        
+
         # Example section
         with gr.Accordion(locale.get('examples_title', '示例'), open=False):
             gr.Markdown(f"""
@@ -93,13 +97,14 @@ def create_tag_translator_tab_content(locale: Dict[str, str] = None) -> Dict[str
             """)
     
     # Define the translation function
-    def translate_description(description: str, source_type: str) -> tuple:
+    def translate_description(description: str, source_type: str, method: str) -> tuple:
         """
         Translate the description and return result and status.
         
         Args:
             description (str): Chinese description to translate.
             source_type (str): Target data source type.
+            method (str): Translation method (jikan or googletrans).
             
         Returns:
             tuple[str, str]: (translated_result, status_message)
@@ -108,27 +113,15 @@ def create_tag_translator_tab_content(locale: Dict[str, str] = None) -> Dict[str
             return "", locale.get('error_empty_description', '请输入要翻译的中文描述')
         
         try:
-            # Call the API
-            response = api.translate_tag({
-                "description": description.strip(),
-                "source_type": source_type
-            })
+            # Call the TagTranslator with the selected method
+            translator = TagTranslator()
+            formatted_tag = translator.translate_to_english(description.strip(), method)
+
+            # Format the tag based on the source type
+            formatted_tag = translator.format_tag(formatted_tag, source_type)
+
+            return formatted_tag
             
-            if response.get("success"):
-                formatted_tag = response.get("formatted_tag", "")
-                status_msg = locale.get('success_message', '翻译成功！')
-                
-                # Add format info to status
-                if source_type.lower() in api.translator.BOORU_SOURCES:
-                    status_msg += f" ({locale.get('booru_format_info', 'Booru格式：小写+下划线')})"
-                else:
-                    status_msg += f" ({locale.get('other_format_info', '普通格式：保持空格')})"
-                
-                return formatted_tag, status_msg
-            else:
-                error_msg = response.get("error", locale.get('unknown_error', '未知错误'))
-                return "", f"{locale.get('error_prefix', '错误')}: {error_msg}"
-                
         except Exception as e:
             return "", f"{locale.get('error_prefix', '错误')}: {str(e)}"
     
@@ -136,27 +129,31 @@ def create_tag_translator_tab_content(locale: Dict[str, str] = None) -> Dict[str
         """Clear all input and output fields."""
         return "", "", ""
     
+    # Update the copy function to use JavaScript for clipboard functionality
+    def copy_to_clipboard_js():
+        return "navigator.clipboard.writeText(document.querySelector('[label=\"翻译结果\"]').value);"
+
     # Set up event handlers
     translate_button.click(
         fn=translate_description,
-        inputs=[description_input, source_dropdown],
-        outputs=[result_output, status_output]
+        inputs=[description_input, source_dropdown, method_selector],
+        outputs=[translation_output]
     )
     
     clear_button.click(
         fn=clear_inputs,
         inputs=[],
-        outputs=[description_input, result_output, status_output]
+        outputs=[description_input, translation_output]
     )
     
     # Return components for external access
     return {
         "description_input": description_input,
         "source_dropdown": source_dropdown,
+        "method_selector": method_selector,
         "translate_button": translate_button,
         "clear_button": clear_button,
-        "result_output": result_output,
-        "status_output": status_output
+        "translation_output": translation_output
     }
 
 
@@ -176,8 +173,8 @@ def update_tag_translator_ui_language(components: Dict[str, Any], locale: Dict[s
                  placeholder=locale.get('description_placeholder', '例如：初音未来')),
         gr.update(label=locale.get('target_source_label', '目标数据源'),
                  info=locale.get('source_info', 'Booru类型源将使用下划线格式')),
+        gr.update(label=locale.get('method_selector_label', '选择翻译方法')),
         gr.update(value=locale.get('translate_button', '翻译')),
         gr.update(value=locale.get('clear_button', '清空')),
-        gr.update(label=locale.get('result_label', '翻译结果')),
-        gr.update(label=locale.get('status_label', '状态'))
+        gr.update(label=locale.get('translation_output_label', '翻译结果'))
     ]

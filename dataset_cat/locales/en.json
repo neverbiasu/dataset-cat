@@ -54,7 +54,7 @@
     "source_info": "Booru-type sources will use underscore format",
     "translate_button": "Translate",
     "clear_button": "Clear",
-    "status_label": "Status",
+    "translation_output_label": "Translation Result",
     "examples_title": "Examples",
     "examples_booru": "Booru Data Source Examples",
     "examples_other": "Other Data Source Examples",
