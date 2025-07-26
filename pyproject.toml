@@ -2,7 +2,7 @@
 name = "dataset-cat"
 version = "0.0.7"
 description = "A tool for fetching and organizing anime datasets for training."
-authors = ["neverbiasu neverbiasu@gmail.com]
+authors = ["neverbiasu neverbiasu@gmail.com"]
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/neverbiasu/dataset-cat"
