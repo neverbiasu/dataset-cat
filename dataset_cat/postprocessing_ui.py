@@ -4,7 +4,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import gradio as gr
 from PIL import Image
@@ -21,7 +21,125 @@ from waifuc.export import SaveExporter
 from waifuc.model import ImageItem
 from dataset_cat.core.actions import CropToDivisibleAction, FileSizeFilterAction, ImageCompressionAction
 
-def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -> Dict[str, gr.Component]:
+
+def _discover_image_files(input_directory: str) -> List[Path]:
+    """
+    Discover all image files in the input directory.
+    
+    Args:
+        input_directory: Path to the directory to search.
+        
+    Returns:
+        List of Path objects for found image files.
+    """
+    exts = [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"]
+    file_set = set()
+    for ext in exts:
+        file_set.update(Path(input_directory).glob(f"**/*{ext}"))
+        file_set.update(Path(input_directory).glob(f"**/*{ext.upper()}"))
+    return list(file_set)
+
+
+def _build_processing_pipeline(
+    selected_actions: List[str],
+    actions_mapping: Dict[str, str],
+    params: Dict[str, Any]
+) -> List[Any]:
+    """
+    Build the image processing pipeline based on selected actions.
+    
+    Args:
+        selected_actions: List of localized action labels.
+        actions_mapping: Mapping from action keys to localized labels.
+        params: Dictionary of action parameters.
+        
+    Returns:
+        List of action objects to apply.
+    """
+    inverse_map = {v: k for k, v in actions_mapping.items()}
+    pipeline: List[Any] = []
+    
+    action_builders = {
+        "resize_min": lambda: AlignMinSizeAction(params.get("min_size")) if params.get("min_size") else None,
+        "resize_max": lambda: AlignMaxSizeAction(params.get("max_size")) if params.get("max_size") else None,
+        "mode_convert": lambda: ModeConvertAction(params.get("mode")) if params.get("mode") else None,
+        "compress_image": lambda: ImageCompressionAction(params.get("quality")) if params.get("quality") else None,
+        "crop_to_divisible": lambda: CropToDivisibleAction(int(params.get("divisible_by"))) if params.get("divisible_by") else None,
+        "filter_filesize": lambda: FileSizeFilterAction(
+            int(params.get("min_filesize") or 0),
+            int(params.get("max_filesize") or 0)
+        ) if params.get("min_filesize") is not None or params.get("max_filesize") is not None else None,
+    }
+    
+    for label in selected_actions:
+        key = inverse_map.get(label)
+        if key in action_builders:
+            action = action_builders[key]()
+            if action is not None:
+                pipeline.append(action)
+    
+    return pipeline
+
+
+def _apply_action_to_image(action: Any, img: Image.Image) -> Optional[Image.Image]:
+    """
+    Apply a single action to an image.
+    
+    Args:
+        action: The action to apply.
+        img: The PIL Image to process.
+        
+    Returns:
+        Processed image or None if filtered out.
+    """
+    if isinstance(action, CropToDivisibleAction):
+        img_item = ImageItem(img)
+        result_item = action(img_item)
+        return result_item.image if result_item is not None else None
+    elif hasattr(action, "apply"):
+        return action.apply(img)
+    else:
+        return action(img)
+
+
+def _process_single_image(
+    path: Path,
+    pipeline: List[Any],
+    output_directory: str
+) -> bool:
+    """
+    Process a single image through the pipeline.
+    
+    Args:
+        path: Path to the image file.
+        pipeline: List of actions to apply.
+        output_directory: Directory to save processed image.
+        
+    Returns:
+        True if processing succeeded, False otherwise.
+    """
+    try:
+        img = Image.open(path)
+        
+        for action in pipeline:
+            try:
+                img = _apply_action_to_image(action, img)
+            except Exception as e:
+                print(f"Action {action} failed on {path}: {e}")
+                return False
+            
+            if img is None:
+                return False
+        
+        save_name = Path(path).name
+        img.save(Path(output_directory) / save_name)
+        return True
+        
+    except Exception as e:
+        print(f"Failed to process {path}: {e}")
+        return False
+
+def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     创建数据后处理标签页内容，支持国际化。
 
@@ -29,7 +147,7 @@ def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -
         locale: 本地化数据字典，包含 UI 标签的翻译
 
     Returns:
-        Dict[str, gr.Component]: 包含所有后处理组件的字典，便于后续更新
+        Dict[str, Any]: 包含所有后处理组件的字典，便于后续更新
     """
     if locale is None:
         locale = {}
@@ -40,7 +158,7 @@ def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -
     def _get_actions_localized(key: str, default: str) -> str:
         return locale.get("actions_list", {}).get(key, default)
 
-    components: Dict[str, gr.Component] = {}
+    components: Dict[str, Any] = {}
 
     actions_mapping = {
         "resize_min": _get_actions_localized("resize_min", "调整大小（最小尺寸）"),
@@ -163,67 +281,30 @@ def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -
             """
             # Ensure output directory exists
             os.makedirs(output_directory, exist_ok=True)
-            # Find all image files in input directory
-            exts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif']
-            # Only collect unique files (avoid duplicates from upper/lower case)
-            file_set = set()
-            for ext in exts:
-                file_set.update(Path(input_directory).glob(f"**/*{ext}"))
-                file_set.update(Path(input_directory).glob(f"**/*{ext.upper()}"))
-            files = list(file_set)
+            
+            # Find all image files
+            files = _discover_image_files(input_directory)
             print("Found files:", files)
-            processed_count = 0
-
-            # Map localized labels back to action keys
-            inverse_map = {v: k for k, v in actions_mapping.items()}
+            
+            # Build parameters dictionary
+            params = {
+                "min_size": min_size_val,
+                "max_size": max_size_val,
+                "mode": mode_val,
+                "quality": quality_val,
+                "divisible_by": divisible_by_val,
+                "min_filesize": min_filesize_val,
+                "max_filesize": max_filesize_val,
+            }
+            
             # Build processing pipeline
-            pipeline: List[Any] = []
-            for label in selected_actions:
-                key = inverse_map.get(label)
-                if key == 'resize_min' and min_size_val:
-                    pipeline.append(AlignMinSizeAction(min_size_val))
-                elif key == 'resize_max' and max_size_val:
-                    pipeline.append(AlignMaxSizeAction(max_size_val))
-                elif key == 'mode_convert' and mode_val:
-                    pipeline.append(ModeConvertAction(mode_val))
-                elif key == 'compress_image' and quality_val:
-                    pipeline.append(ImageCompressionAction(quality_val))
-                elif key == 'crop_to_divisible' and divisible_by_val:
-                    # Fix: CropToDivisibleAction 需要传递 Image 对象，且部分实现可能会返回 None
-                    pipeline.append(CropToDivisibleAction(int(divisible_by_val)))
-                elif key == 'filter_filesize' and (min_filesize_val is not None or max_filesize_val is not None):
-                    pipeline.append(FileSizeFilterAction(int(min_filesize_val or 0), int(max_filesize_val or 0)))
-
+            pipeline = _build_processing_pipeline(selected_actions, actions_mapping, params)
+            
             # Process each file
-            for path in files:
-                try:
-                    img = Image.open(path)
-                    filtered = False
-                    for action in pipeline:
-                        try:
-                            # Special handling for CropToDivisibleAction: expects ImageItem, returns ImageItem
-                            if isinstance(action, CropToDivisibleAction):
-                                img_item = ImageItem(img)
-                                img_item = action(img_item)
-                                img = img_item.image if img_item is not None else None
-                            else:
-                                img = action.apply(img) if hasattr(action, 'apply') else action(img)
-                        except Exception as e:
-                            print(f"Action {action} failed on {path}: {e}")
-                            filtered = True
-                            break
-                        if img is None:
-                            filtered = True
-                            break
-                    if filtered:
-                        continue
-                    # Save processed image
-                    save_name = Path(path).name
-                    img.save(Path(output_directory) / save_name)
-                    processed_count += 1
-                except Exception as e:
-                    print(f"Failed to process {path}: {e}")
-                    continue
+            processed_count = sum(
+                1 for path in files
+                if _process_single_image(path, pipeline, output_directory)
+            )
 
             # Return summary message
             return _get_localized("processing_completed", "处理完成。{count} 张图片处理完毕。").format(count=processed_count)
@@ -252,7 +333,7 @@ def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -
     return components
 
 
-def update_postprocessing_ui_language(components: Dict[str, gr.Component], locale_data: Dict[str, Any]) -> List[Any]:
+def update_postprocessing_ui_language(components: Dict[str, Any], locale_data: Dict[str, Any]) -> List[Any]:
     """
     Update postprocessing UI component labels and choices based on new locale data.
     
