@@ -104,31 +104,32 @@ class TagTranslator:
             # Other platforms keep original capitalization and spaces
             return tag
     
-    def get_formatted_tag(self, description: str, source_type: str) -> str:
+    def get_formatted_tag(self, description: str, source_type: str, method: str = "googletrans") -> str:
         """
         Translate Chinese description and format it for the specified data source.
         
         Args:
             description (str): Chinese description to translate.
             source_type (str): Target data source type.
+            method (str): Translation method, defaults to "googletrans".
             
         Returns:
             str: Formatted English tag ready for use.
             
         Raises:
-            Exception: If translation or formatting fails.
+            ValueError: If translation or formatting fails.
         """
         try:
-            # Translate the description
-            translated_tag = self.translate_to_english(description)
+            # Translate the description with the specified method
+            translated_tag = self.translate_to_english(description, method)
             
             # Format according to source type
             formatted_tag = self.format_tag(translated_tag, source_type)
             
             return formatted_tag
             
-        except Exception as e:
-            raise Exception(f"Tag processing failed: {str(e)}")
+        except ValueError as e:
+            raise ValueError(f"Tag processing failed: {str(e)}")
     
     def translate_description(self, description: str, source_type: str, method: str) -> List[str]:
         """
@@ -148,16 +149,17 @@ class TagTranslator:
 
 
 # Convenience function for direct usage
-def translate_and_format(description: str, source_type: str) -> str:
+def translate_and_format(description: str, source_type: str, method: str = "googletrans") -> str:
     """
     Convenience function to translate and format a tag in one call.
     
     Args:
         description (str): Chinese description to translate.
         source_type (str): Target data source type.
+        method (str): Translation method, defaults to "googletrans".
         
     Returns:
         str: Formatted English tag.
     """
     translator = TagTranslator()
-    return translator.get_formatted_tag(description, source_type)
+    return translator.get_formatted_tag(description, source_type, method)
