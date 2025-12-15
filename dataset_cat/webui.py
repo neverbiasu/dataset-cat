@@ -15,6 +15,9 @@ from waifuc.export import HuggingFaceExporter, SaveExporter, TextualInversionExp
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Constants for data sources
+ANIME_PICTURES_BROKEN = "AnimePictures (Broken)"
+
 # Define size options for each data source
 # These are example values and might need adjustment based on actual source capabilities
 SIZE_OPTIONS_MAP = {
@@ -36,7 +39,7 @@ SIZE_OPTIONS_MAP = {
     "Rule34": ["Original", "Large", "Medium", "Small"],
     "HypnoHub": ["Original", "Large", "Medium", "Small"],
     "Paheal": ["Original", "Large", "Medium", "Small"],
-    "AnimePictures (Broken)": [],  # No options for broken source
+    ANIME_PICTURES_BROKEN: [],  # No options for broken source
     "Duitang": ["Original", "Large", "Medium", "Small"],  # Duitang is more about collections
     "Pixiv": ["original", "large", "medium", "square_medium"],
     "Derpibooru": ["full", "large", "medium", "small", "thumb"],
@@ -55,7 +58,7 @@ DEFAULT_SIZE_MAP = {
     "Rule34": "Original",
     "HypnoHub": "Original",
     "Paheal": "Original",
-    "AnimePictures (Broken)": None,
+    ANIME_PICTURES_BROKEN: None,
     "Duitang": "Original",
     "Pixiv": "large",
     "Derpibooru": "large",
@@ -75,7 +78,7 @@ SOURCE_LIST = [
     "Rule34",
     "HypnoHub",
     "Paheal",
-    "AnimePictures (Broken)",  # Marked as broken
+    ANIME_PICTURES_BROKEN,  # Marked as broken
     "Duitang",
     "Pixiv",
     "Derpibooru",
@@ -253,10 +256,32 @@ def load_locales() -> dict:
     return locales
 
 
-# WebUI 启动函数
-def launch_webui():
-    locales = load_locales()
-    def process_data(source_name, tags, limit, size, strict, actions, output_dir, save_meta, save_author, exporter_type, hf_repo, hf_token, lang):
+def _create_process_data_handler(locales: dict):
+    """
+    Create the data processing callback function.
+    
+    Args:
+        locales: Dictionary of locale data.
+        
+    Returns:
+        Callable: The process_data function.
+    """
+    def process_data(
+        source_name: str,
+        tags: str,
+        limit: int,
+        size: str,
+        strict: bool,
+        actions: list,
+        output_dir: str,
+        save_meta: bool,
+        save_author: bool,
+        exporter_type: str,
+        hf_repo: str,
+        hf_token: str,
+        lang: str
+    ) -> str:
+        """Process data from the selected source."""
         logger.info("Start processing data...")
         locale_data = locales.get(lang, locales.get("zh", {}))
         source, message = start_crawl(source_name, tags, limit, size, strict)
@@ -264,83 +289,210 @@ def launch_webui():
             logger.error(f"Crawl failed: {message}")
             return message
         source = apply_actions(source, actions)
-        result = export_data(source, output_dir, save_meta, save_author, exporter_type, hf_repo, hf_token, locale_data)
+        result = export_data(
+            source, output_dir, save_meta, save_author,
+            exporter_type, hf_repo, hf_token, locale_data
+        )
         logger.info(f"Process finished: {result}")
         return result
+    return process_data
+
+
+def _create_crawl_tab_components() -> dict:
+    """
+    Create UI components for the crawl tab.
+    
+    Returns:
+        dict: Dictionary of Gradio components.
+    """
+    available_sources = get_sources()
+    default_source = available_sources[0] if available_sources else None
+    
+    components = {
+        "src_dropdown": gr.Dropdown(
+            choices=available_sources,
+            value=default_source,
+            label="数据源"
+        ),
+        "tags_input": gr.Textbox(label="标签（逗号分隔）"),
+        "limit_slider": gr.Slider(1, 350, value=10, step=1, label="数量限制"),
+        "size_dropdown": gr.Dropdown(
+            choices=SIZE_OPTIONS_MAP.get(default_source, []),
+            value=None,
+            label="图片尺寸"
+        ),
+        "strict_checkbox": gr.Checkbox(label="严格模式（仅 Zerochan）"),
+        "actions_group": gr.CheckboxGroup(["NoMonochrome", "FilterSimilar"], label="操作"),
+        "output_dir_input": gr.Textbox(value="./output", label="输出目录"),
+        "save_meta_checkbox": gr.Checkbox(label="保存元数据"),
+        "save_author_checkbox": gr.Checkbox(label="保存作者信息", value=True),
+        "exporter_dropdown": gr.Dropdown(
+            ["SaveExporter", "TextualInversionExporter", "HuggingFaceExporter"],
+            value="SaveExporter",
+            label="导出器类型"
+        ),
+        "hf_repo_input": gr.Textbox(label="HuggingFace 仓库（可选）"),
+        "hf_token_input": gr.Textbox(label="HuggingFace Token（可选）", type="password"),
+        "result_output": gr.Textbox(label="结果", interactive=False),
+        "start_button": gr.Button("开始"),
+    }
+    return components
+
+
+def _get_crawl_tab_language_updates(locale_data: dict) -> list:
+    """
+    Generate language update objects for crawl tab components.
+    
+    Args:
+        locale_data: Dictionary of localized strings.
+        
+    Returns:
+        list: List of gr.update() objects.
+    """
+    return [
+        gr.update(label=locale_data.get("data_source_label", "数据源")),
+        gr.update(label=locale_data.get("tags_label", "标签（逗号分隔）")),
+        gr.update(label=locale_data.get("limit_label", "数量限制")),
+        gr.update(label=locale_data.get("image_size_label", "图片尺寸")),
+        gr.update(label=locale_data.get("strict_mode_label", "严格模式（仅 Zerochan）")),
+        gr.update(label=locale_data.get("actions_label", "操作")),
+        gr.update(label=locale_data.get("output_directory_label", "输出目录")),
+        gr.update(label=locale_data.get("save_metadata_label", "保存元数据")),
+        gr.update(label=locale_data.get("save_author_label", "保存作者信息")),
+        gr.update(label=locale_data.get("exporter_type_label", "导出器类型")),
+        gr.update(label=locale_data.get("hf_repo_label", "HuggingFace 仓库（可选）")),
+        gr.update(label=locale_data.get("hf_token_label", "HuggingFace Token（可选）")),
+        gr.update(value=locale_data.get("start_button", "开始")),
+        gr.update(label=locale_data.get("result_label", "结果")),
+    ]
+
+
+def _create_language_switch_handler(
+    locales: dict,
+    postproc_components: dict,
+    tag_translator_components: dict
+):
+    """
+    Create the language switch callback function.
+    
+    Args:
+        locales: Dictionary of locale data.
+        postproc_components: Post-processing UI components.
+        tag_translator_components: Tag translator UI components.
+        
+    Returns:
+        Callable: The switch_language function.
+    """
+    def switch_language(lang: str) -> list:
+        """Switch UI language."""
+        locale_data = locales.get(lang, {})
+        title_text = f"# {locale_data.get('app_title', '数据猫 WebUI')}"
+        
+        # Base updates for header
+        updates = [
+            lang,
+            gr.update(value=title_text),
+            gr.update(label=locale_data.get("language_selector", "语言/Language")),
+        ]
+        
+        # Crawl tab updates
+        updates.extend(_get_crawl_tab_language_updates(locale_data))
+        
+        # Post-processing UI updates
+        post_updates = update_postprocessing_ui_language(postproc_components, locale_data)
+        
+        # Tag translator UI updates
+        tag_translator_updates = update_tag_translator_ui_language(
+            tag_translator_components, locale_data
+        )
+        
+        return updates + post_updates + tag_translator_updates
+    
+    return switch_language
+
+
+# WebUI 启动函数
+def launch_webui():
+    """Launch the Dataset Cat WebUI application."""
+    locales = load_locales()
+    process_data = _create_process_data_handler(locales)
     
     with gr.Blocks(css="footer {visibility: hidden}") as demo:
         current_lang = gr.State("zh")
         title = gr.Markdown("# 数据猫 WebUI")
-        language_selector = gr.Radio(choices=list(locales.keys()), value="zh", label="语言/Language")
-        with gr.Tabs() as tabs:
-            with gr.TabItem("数据抓取") as crawl_tab:
-                available_sources = get_sources()
-                src_dropdown = gr.Dropdown(choices=available_sources, value=available_sources[0] if available_sources else None, label="数据源")
-                tags_input = gr.Textbox(label="标签（逗号分隔）")
-                limit_slider = gr.Slider(1, 350, value=10, step=1, label="数量限制")
-                size_dropdown = gr.Dropdown(choices=SIZE_OPTIONS_MAP.get(available_sources[0], []), value=None, label="图片尺寸")
-                strict_checkbox = gr.Checkbox(label="严格模式（仅 Zerochan）")
-                actions_group = gr.CheckboxGroup(["NoMonochrome", "FilterSimilar"], label="操作")
-                output_dir_input = gr.Textbox(value="./output", label="输出目录")
-                save_meta_checkbox = gr.Checkbox(label="保存元数据")
-                save_author_checkbox = gr.Checkbox(label="保存作者信息", value=True)
-                exporter_dropdown = gr.Dropdown(["SaveExporter", "TextualInversionExporter", "HuggingFaceExporter"], value="SaveExporter", label="导出器类型")
-                hf_repo_input = gr.Textbox(label="HuggingFace 仓库（可选）")
-                hf_token_input = gr.Textbox(label="HuggingFace Token（可选）", type="password")
-                result_output = gr.Textbox(label="结果", interactive=False)
-                start_button = gr.Button("开始")
-                start_button.click(
+        language_selector = gr.Radio(
+            choices=list(locales.keys()),
+            value="zh",
+            label="语言/Language"
+        )
+        
+        with gr.Tabs():
+            # Crawl tab
+            with gr.TabItem("数据抓取"):
+                crawl_components = _create_crawl_tab_components()
+                crawl_components["start_button"].click(
                     process_data,
-                    inputs=[src_dropdown, tags_input, limit_slider, size_dropdown, strict_checkbox, actions_group,
-                            output_dir_input, save_meta_checkbox, save_author_checkbox, exporter_dropdown, hf_repo_input, hf_token_input, current_lang],
-                    outputs=result_output
+                    inputs=[
+                        crawl_components["src_dropdown"],
+                        crawl_components["tags_input"],
+                        crawl_components["limit_slider"],
+                        crawl_components["size_dropdown"],
+                        crawl_components["strict_checkbox"],
+                        crawl_components["actions_group"],
+                        crawl_components["output_dir_input"],
+                        crawl_components["save_meta_checkbox"],
+                        crawl_components["save_author_checkbox"],
+                        crawl_components["exporter_dropdown"],
+                        crawl_components["hf_repo_input"],
+                        crawl_components["hf_token_input"],
+                        current_lang,
+                    ],
+                    outputs=crawl_components["result_output"],
                 )
-            with gr.TabItem("数据后处理") as postproc_tab:
-                postproc_components = create_postprocessing_tab_content(locale=locales.get("zh", {}))
             
-            with gr.TabItem("标签翻译") as tag_translator_tab:
-                tag_translator_components = create_tag_translator_tab_content(locale=locales.get("zh", {}))
-        def switch_language(lang):
-            locale_data = locales.get(lang, {})
-            # Prepare updated content and labels via gr.update
-            title_text = f"# {locale_data.get('app_title', '数据猫 WebUI')}"
-            updates = [
-                lang,
-                gr.update(value=title_text),  # update Markdown title
-                gr.update(label=locale_data.get('language_selector', '语言/Language')),
-                gr.update(label=locale_data.get('data_source_label', '数据源')),
-            ]
-            # Add other label updates
-            updates += [
-                gr.update(label=locale_data.get('tags_label', '标签（逗号分隔）')),
-                gr.update(label=locale_data.get('limit_label', '数量限制')),
-                gr.update(label=locale_data.get('image_size_label', '图片尺寸')),
-                gr.update(label=locale_data.get('strict_mode_label', '严格模式（仅 Zerochan）')),
-                gr.update(label=locale_data.get('actions_label', '操作')),                gr.update(label=locale_data.get('output_directory_label', '输出目录')),
-                gr.update(label=locale_data.get('save_metadata_label', '保存元数据')),
-                gr.update(label=locale_data.get('save_author_label', '保存作者信息')),
-                gr.update(label=locale_data.get('exporter_type_label', '导出器类型')),
-                gr.update(label=locale_data.get('hf_repo_label', 'HuggingFace 仓库（可选）')),
-                gr.update(label=locale_data.get('hf_token_label', 'HuggingFace Token（可选）')),
-                gr.update(value=locale_data.get('start_button', '开始')),
-                gr.update(label=locale_data.get('result_label', '结果'))
-            ]
-            # Apply post-processing UI updates
-            post_updates = update_postprocessing_ui_language(postproc_components, locale_data)
-            # Apply tag translator UI updates
-            tag_translator_updates = update_tag_translator_ui_language(tag_translator_components, locale_data)
-            return updates + post_updates + tag_translator_updates
-        # Bind language switch
+            # Post-processing tab
+            with gr.TabItem("数据后处理"):
+                postproc_components = create_postprocessing_tab_content(
+                    locale=locales.get("zh", {})
+                )
+            
+            # Tag translator tab
+            with gr.TabItem("标签翻译"):
+                tag_translator_components = create_tag_translator_tab_content(
+                    locale=locales.get("zh", {})
+                )
+        
+        # Language switch handler
+        switch_language = _create_language_switch_handler(
+            locales, postproc_components, tag_translator_components
+        )
+        
         language_selector.change(
             switch_language,
-            inputs=[language_selector],            outputs=[
+            inputs=[language_selector],
+            outputs=[
                 current_lang,
-                title, language_selector,
-                src_dropdown, tags_input, limit_slider, size_dropdown,
-                strict_checkbox, actions_group, output_dir_input, save_meta_checkbox, save_author_checkbox,
-                exporter_dropdown, hf_repo_input, hf_token_input, start_button, result_output
-            ] + list(postproc_components.values()) + list(tag_translator_components.values())
+                title,
+                language_selector,
+                crawl_components["src_dropdown"],
+                crawl_components["tags_input"],
+                crawl_components["limit_slider"],
+                crawl_components["size_dropdown"],
+                crawl_components["strict_checkbox"],
+                crawl_components["actions_group"],
+                crawl_components["output_dir_input"],
+                crawl_components["save_meta_checkbox"],
+                crawl_components["save_author_checkbox"],
+                crawl_components["exporter_dropdown"],
+                crawl_components["hf_repo_input"],
+                crawl_components["hf_token_input"],
+                crawl_components["start_button"],
+                crawl_components["result_output"],
+            ] + list(postproc_components.values()) + list(tag_translator_components.values()),
         )
+        
         demo.launch(inbrowser=True)
-if __name__ == '__main__':
+
+
+if __name__ == "__main__":
     launch_webui()
