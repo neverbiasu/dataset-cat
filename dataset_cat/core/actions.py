@@ -6,6 +6,7 @@ providing additional functionality for image processing.
 
 import io
 import os
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 from PIL import Image
@@ -126,7 +127,7 @@ class ImageCompressionAction(ProcessAction):
             quality: JPEG quality for estimation.
 
         Returns:
-            Estimated file size in bytes.
+            Estimated file size in bytes, or sys.maxsize if estimation fails.
         """
         buffer = io.BytesIO()
         save_kwargs: Dict[str, Any] = {}
@@ -157,7 +158,7 @@ class ImageCompressionAction(ProcessAction):
             return size
         except Exception:
             buffer.close()
-            return float("inf")  # Return infinity if save fails
+            return sys.maxsize  # Return max int if save fails
 
     def _compress_jpeg(self, image: Image.Image) -> Tuple[Image.Image, int, int]:
         """Use binary search to find appropriate JPEG quality.
@@ -172,7 +173,7 @@ class ImageCompressionAction(ProcessAction):
         high_quality = self.max_quality
         best_quality = high_quality
         best_image = image
-        best_size = float("inf")
+        best_size = sys.maxsize
 
         # Ensure image is RGB mode
         if image.mode != "RGB":
