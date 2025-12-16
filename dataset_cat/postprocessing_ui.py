@@ -139,6 +139,91 @@ def _process_single_image(
         print(f"Failed to process {path}: {e}")
         return False
 
+
+def _create_action_parameter_panels(
+    locale_getter: Callable[[str, str], str],
+    components: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Create parameter panels for each action.
+    
+    Args:
+        locale_getter: Function to get localized strings.
+        components: Dictionary to store created components.
+        
+    Returns:
+        Dictionary mapping action labels to parameter group components.
+    """
+    param_groups: Dict[str, Any] = {}
+    
+    with gr.Column(visible=False) as resize_min_params:
+        min_size = gr.Number(value=512, label=locale_getter("min_size_label", "最小尺寸（像素）"))
+        components["min_size"] = min_size
+        components["resize_min_params"] = resize_min_params
+        param_groups["resize_min"] = resize_min_params
+
+    with gr.Column(visible=False) as resize_max_params:
+        max_size = gr.Number(value=1024, label=locale_getter("max_size_label", "最大尺寸（像素）"))
+        components["max_size"] = max_size
+        components["resize_max_params"] = resize_max_params
+        param_groups["resize_max"] = resize_max_params
+
+    with gr.Column(visible=False) as mode_convert_params:
+        mode = gr.Dropdown(choices=["RGB", "RGBA"], value="RGB", label=locale_getter("mode_label", "模式"))
+        components["mode"] = mode
+        components["mode_convert_params"] = mode_convert_params
+        param_groups["mode_convert"] = mode_convert_params
+
+    with gr.Column(visible=False) as compress_params:
+        quality = gr.Slider(minimum=1, maximum=100, value=85, step=1, label=locale_getter("quality_label", "质量（%）"))
+        components["quality"] = quality
+        components["compress_params"] = compress_params
+        param_groups["compress_image"] = compress_params
+
+    with gr.Column(visible=False) as crop_divisible_params:
+        divisible_by = gr.Number(value=32, label=locale_getter("divisible_by_label", "整除值"))
+        components["divisible_by"] = divisible_by
+        components["crop_divisible_params"] = crop_divisible_params
+        param_groups["crop_to_divisible"] = crop_divisible_params
+
+    with gr.Column(visible=False) as filesize_filter_params:
+        min_filesize = gr.Number(value=0, label=locale_getter("min_filesize_label", "最小文件大小（KB）"))
+        max_filesize = gr.Number(value=10000, label=locale_getter("max_filesize_label", "最大文件大小（KB）"))
+        components["min_filesize"] = min_filesize
+        components["max_filesize"] = max_filesize
+        components["filesize_filter_params"] = filesize_filter_params
+        param_groups["filter_filesize"] = filesize_filter_params
+    
+    return param_groups
+
+
+def _create_visibility_updater(
+    actions_mapping: Dict[str, str],
+    param_groups: Dict[str, Any]
+) -> tuple:
+    """Create visibility update function for action parameters.
+    
+    Args:
+        actions_mapping: Mapping of action keys to localized labels.
+        param_groups: Mapping of action keys to parameter group components.
+        
+    Returns:
+        Visibility update function.
+    """
+    # Build mapping from localized label to param group
+    label_to_group = {
+        actions_mapping[key]: param_groups[key]
+        for key in param_groups.keys()
+    }
+    
+    def update_visibility(selected_actions: List[str]) -> List[Any]:
+        return [
+            gr.update(visible=(label in selected_actions))
+            for label in label_to_group.keys()
+        ]
+    
+    return update_visibility, list(label_to_group.values())
+
+
 def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     创建数据后处理标签页内容，支持国际化。
@@ -191,59 +276,19 @@ def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -
         )
         components["actions"] = actions
 
-        with gr.Column(visible=False) as resize_min_params:
-            min_size = gr.Number(value=512, label=_get_localized("min_size_label", "最小尺寸（像素）"))
-            components["min_size"] = min_size
-            components["resize_min_params"] = resize_min_params
+        # Create parameter panels
+        param_groups = _create_action_parameter_panels(_get_localized, components)
 
-        with gr.Column(visible=False) as resize_max_params:
-            max_size = gr.Number(value=1024, label=_get_localized("max_size_label", "最大尺寸（像素）"))
-            components["max_size"] = max_size
-            components["resize_max_params"] = resize_max_params
-
-        with gr.Column(visible=False) as mode_convert_params:
-            mode = gr.Dropdown(choices=["RGB", "RGBA"], value="RGB", label=_get_localized("mode_label", "模式"))
-            components["mode"] = mode
-            components["mode_convert_params"] = mode_convert_params
-
-        with gr.Column(visible=False) as compress_params:
-            quality = gr.Slider(minimum=1, maximum=100, value=85, step=1, label=_get_localized("quality_label", "质量（%）"))
-            components["quality"] = quality
-            components["compress_params"] = compress_params
-
-        with gr.Column(visible=False) as crop_divisible_params:
-            divisible_by = gr.Number(value=32, label=_get_localized("divisible_by_label", "整除值"))
-            components["divisible_by"] = divisible_by
-            components["crop_divisible_params"] = crop_divisible_params
-
-        with gr.Column(visible=False) as filesize_filter_params:
-            min_filesize = gr.Number(value=0, label=_get_localized("min_filesize_label", "最小文件大小（KB）"))
-            max_filesize = gr.Number(value=10000, label=_get_localized("max_filesize_label", "最大文件大小（KB）"))
-            components["min_filesize"] = min_filesize
-            components["max_filesize"] = max_filesize
-            components["filesize_filter_params"] = filesize_filter_params
-
-        param_groups = {
-            actions_mapping["resize_min"]: resize_min_params,
-            actions_mapping["resize_max"]: resize_max_params,
-            actions_mapping["mode_convert"]: mode_convert_params,
-            actions_mapping["compress_image"]: compress_params,
-            actions_mapping["crop_to_divisible"]: crop_divisible_params,
-            actions_mapping["filter_filesize"]: filesize_filter_params,
-        }
-
-        def update_visibility(selected_actions: List[str]) -> List[Any]:
-            return [gr.update(visible=(action in selected_actions)) for action, grp in param_groups.items()]
-
-        actions.change(update_visibility, inputs=[actions], outputs=list(param_groups.values()))
+        # Create visibility updater and bind to actions change
+        update_visibility, param_group_outputs = _create_visibility_updater(
+            actions_mapping, param_groups
+        )
+        actions.change(update_visibility, inputs=[actions], outputs=param_group_outputs)
 
         def preview_images(input_directory: str) -> str:
             if not os.path.exists(input_directory):
                 return _get_localized("no_images_found", "在目录中未找到图片")
-            files = []
-            for ext in ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif']:
-                files.extend(Path(input_directory).glob(f"**/*{ext}"))
-                files.extend(Path(input_directory).glob(f"**/*{ext.upper()}"))
+            files = _discover_image_files(input_directory)
             if not files:
                 return _get_localized("no_images_found", "在目录中未找到图片")
             return _get_localized("preview_result", "预览：在目录中找到 {count} 张图片").format(count=len(files))
@@ -320,13 +365,13 @@ def create_postprocessing_tab_content(locale: Optional[Dict[str, Any]] = None) -
             input_dir,
             output_dir,
             actions,
-            min_size,
-            max_size,
-            mode,
-            quality,
-            divisible_by,
-            min_filesize,
-            max_filesize,
+            components["min_size"],
+            components["max_size"],
+            components["mode"],
+            components["quality"],
+            components["divisible_by"],
+            components["min_filesize"],
+            components["max_filesize"],
         ],
         outputs=result,
     )

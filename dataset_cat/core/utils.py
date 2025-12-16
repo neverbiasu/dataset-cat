@@ -183,7 +183,8 @@ def convert_tag_for_source(
         # Simple dictionary-based translation; can be replaced with API or more advanced logic
         if zh2en_dict and single_tag in zh2en_dict:
             return zh2en_dict[single_tag]
-        # TODO: Integrate with a real translation service or expand dictionary
+        # Note: For full translation support, use the TagTranslator class from tag_translator module.
+        # This function provides basic dictionary-based translation for common tags only.
         return single_tag
 
     tags = [zh2en(t) for t in tags]

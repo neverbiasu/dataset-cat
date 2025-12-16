@@ -2,6 +2,7 @@ import logging
 import os
 import json
 from pathlib import Path
+from typing import Optional
 
 import gradio as gr
 
@@ -104,78 +105,181 @@ def apply_actions(source, actions):
     return source
 
 
-# 作者信息提取函数
-def extract_author_info(item):
+# Author extractor functions for different data sources
+def _extract_danbooru_author(meta: dict) -> Optional[str]:
+    """Extract author from Danbooru metadata.
+    
+    Args:
+        meta: Metadata dictionary from ImageItem.
+        
+    Returns:
+        Author name or None if not found.
     """
-    Extract author information from different data sources.
+    danbooru_data = meta.get("danbooru", {})
+    if not danbooru_data:
+        return None
+    
+    # Try tag_string_artist first
+    artists = danbooru_data.get("tag_string_artist", "").strip()
+    if artists:
+        return artists.replace(" ", ", ")
+    
+    # Try tags.artist
+    tags = danbooru_data.get("tags", {})
+    if isinstance(tags, dict):
+        artist_list = tags.get("artist", [])
+        if artist_list and isinstance(artist_list, list):
+            return ", ".join(artist_list)
+    
+    return None
+
+
+def _extract_safebooru_author(meta: dict) -> Optional[str]:
+    """Extract author from Safebooru metadata.
+    
+    Args:
+        meta: Metadata dictionary from ImageItem.
+        
+    Returns:
+        Author name or None if not found.
+    """
+    safebooru_data = meta.get("safebooru", {})
+    if not safebooru_data:
+        return None
+    
+    artists = safebooru_data.get("tag_string_artist", "").strip()
+    return artists.replace(" ", ", ") if artists else None
+
+
+def _extract_zerochan_author(meta: dict) -> Optional[str]:
+    """Extract author from Zerochan metadata.
+    
+    Args:
+        meta: Metadata dictionary from ImageItem.
+        
+    Returns:
+        Author name or None if not found.
+    """
+    zerochan_data = meta.get("zerochan", {})
+    if not zerochan_data:
+        return None
+    
+    # Direct author fields
+    for field in ("author", "uploader"):
+        value = zerochan_data.get(field)
+        if value:
+            return str(value)
+    
+    # Infer from tags
+    tags = zerochan_data.get("tags", [])
+    if isinstance(tags, list):
+        for tag in reversed(tags):
+            if tag.isalpha() and tag.islower() and 2 <= len(tag) <= 20:
+                return tag
+    
+    return None
+
+
+def _extract_pixiv_author(meta: dict) -> Optional[str]:
+    """Extract author from Pixiv metadata.
+    
+    Args:
+        meta: Metadata dictionary from ImageItem.
+        
+    Returns:
+        Author name or None if not found.
+    """
+    pixiv_data = meta.get("pixiv", {})
+    if not pixiv_data:
+        return None
+    
+    user_data = pixiv_data.get("user", {})
+    if isinstance(user_data, dict):
+        for field in ("name", "account"):
+            value = user_data.get(field)
+            if value:
+                return str(value)
+    
+    return None
+
+
+def _extract_gelbooru_author(meta: dict) -> Optional[str]:
+    """Extract author from Gelbooru metadata.
+    
+    Args:
+        meta: Metadata dictionary from ImageItem.
+        
+    Returns:
+        Author name or None if not found.
+    """
+    import re
+    
+    gelbooru_data = meta.get("gelbooru", {})
+    if not gelbooru_data:
+        return None
+    
+    tags = gelbooru_data.get("tags", "")
+    match = re.search(r"artist:(\w+)", str(tags))
+    return match.group(1) if match else None
+
+
+def _extract_generic_author(meta: dict) -> Optional[str]:
+    """Extract author from generic metadata fields.
+    
+    Args:
+        meta: Metadata dictionary from ImageItem.
+        
+    Returns:
+        Author name or None if not found.
+    """
+    # Try generic tags
+    tags = meta.get("tags", {})
+    if isinstance(tags, dict):
+        for tag in tags:
+            if "artist:" in tag:
+                return tag.replace("artist:", "")
+            if any(k in tag.lower() for k in ("creator", "author", "artist")):
+                return tag
+    
+    # Fallback: search all source data for 'author' field
+    for source_data in meta.values():
+        if isinstance(source_data, dict) and "author" in source_data:
+            author = source_data["author"]
+            if author and str(author).strip():
+                return str(author).strip()
+    
+    return None
+
+
+# List of author extractors in priority order
+_AUTHOR_EXTRACTORS = [
+    _extract_danbooru_author,
+    _extract_safebooru_author,
+    _extract_zerochan_author,
+    _extract_pixiv_author,
+    _extract_gelbooru_author,
+    _extract_generic_author,
+]
+
+
+# 作者信息提取函数
+def extract_author_info(item) -> str:
+    """Extract author information from different data sources.
 
     Args:
-        item: ImageItem from waifuc containing metadata
+        item: ImageItem from waifuc containing metadata.
+
     Returns:
-        str: Author name or "Unknown" if not found
+        Author name or "Unknown" if not found.
     """
     meta = item.meta
     logger.info(f"Extracting author info, meta keys: {list(meta.keys())}")
-    # Danbooru
-    if 'danbooru' in meta:
-        danbooru_data = meta['danbooru']
-        if 'tag_string_artist' in danbooru_data and danbooru_data['tag_string_artist']:
-            artists = danbooru_data['tag_string_artist'].strip()
-            if artists:
-                return artists.replace(' ', ', ')
-        if 'tags' in danbooru_data and isinstance(danbooru_data['tags'], dict):
-            artists = danbooru_data['tags'].get('artist', [])
-            if artists and isinstance(artists, list):
-                return ', '.join(artists)
-    # Safebooru
-    if 'safebooru' in meta:
-        safebooru_data = meta['safebooru']
-        if 'tag_string_artist' in safebooru_data and safebooru_data['tag_string_artist']:
-            artists = safebooru_data['tag_string_artist'].strip()
-            if artists:
-                return artists.replace(' ', ', ')
-    # Zerochan
-    if 'zerochan' in meta:
-        zerochan_data = meta['zerochan']
-        if 'author' in zerochan_data and zerochan_data['author']:
-            return str(zerochan_data['author'])
-        if 'uploader' in zerochan_data and zerochan_data['uploader']:
-            return str(zerochan_data['uploader'])
-        if 'tags' in zerochan_data and isinstance(zerochan_data['tags'], list):
-            # 只保留最简单的作者推断逻辑
-            for tag in reversed(zerochan_data['tags']):
-                if tag.isalpha() and tag.islower() and 2 <= len(tag) <= 20:
-                    return tag
-    # Pixiv
-    if 'pixiv' in meta:
-        pixiv_data = meta['pixiv']
-        if 'user' in pixiv_data and isinstance(pixiv_data['user'], dict):
-            user_data = pixiv_data['user']
-            if 'name' in user_data:
-                return str(user_data['name'])
-            if 'account' in user_data:
-                return str(user_data['account'])
-    # Gelbooru
-    if 'gelbooru' in meta:
-        gelbooru_data = meta['gelbooru']
-        if 'tags' in gelbooru_data:
-            import re
-            artist_match = re.search(r'artist:(\w+)', str(gelbooru_data['tags']))
-            if artist_match:
-                return artist_match.group(1)
-    # 通用tags
-    if 'tags' in meta and isinstance(meta['tags'], dict):
-        for tag in meta['tags']:
-            if 'artist:' in tag:
-                return tag.replace('artist:', '')
-            if any(k in tag.lower() for k in ['creator', 'author', 'artist']):
-                return tag
-    # 兜底
-    for source_key, source_data in meta.items():
-        if isinstance(source_data, dict) and 'author' in source_data:
-            author = source_data['author']
-            if author and str(author).strip():
-                return str(author).strip()
+    
+    for extractor in _AUTHOR_EXTRACTORS:
+        result = extractor(meta)
+        if result:
+            return result
+    
     logger.info("No author info found, return 'Unknown'")
     return "Unknown"
 
@@ -411,9 +515,90 @@ def _create_language_switch_handler(
     return switch_language
 
 
+def _get_crawl_tab_inputs(crawl_components: dict, current_lang) -> list:
+    """Build input list for crawl tab processing.
+    
+    Args:
+        crawl_components: Dictionary of crawl tab components.
+        current_lang: Current language state component.
+        
+    Returns:
+        List of input components.
+    """
+    return [
+        crawl_components["src_dropdown"],
+        crawl_components["tags_input"],
+        crawl_components["limit_slider"],
+        crawl_components["size_dropdown"],
+        crawl_components["strict_checkbox"],
+        crawl_components["actions_group"],
+        crawl_components["output_dir_input"],
+        crawl_components["save_meta_checkbox"],
+        crawl_components["save_author_checkbox"],
+        crawl_components["exporter_dropdown"],
+        crawl_components["hf_repo_input"],
+        crawl_components["hf_token_input"],
+        current_lang,
+    ]
+
+
+def _get_language_switch_outputs(
+    current_lang,
+    title,
+    language_selector,
+    crawl_components: dict,
+    postproc_components: dict,
+    tag_translator_components: dict
+) -> list:
+    """Build output list for language switching.
+    
+    Args:
+        current_lang: Current language state component.
+        title: Title component.
+        language_selector: Language selector component.
+        crawl_components: Dictionary of crawl tab components.
+        postproc_components: Dictionary of post-processing components.
+        tag_translator_components: Dictionary of tag translator components.
+        
+    Returns:
+        List of output components.
+    """
+    return [
+        current_lang,
+        title,
+        language_selector,
+        crawl_components["src_dropdown"],
+        crawl_components["tags_input"],
+        crawl_components["limit_slider"],
+        crawl_components["size_dropdown"],
+        crawl_components["strict_checkbox"],
+        crawl_components["actions_group"],
+        crawl_components["output_dir_input"],
+        crawl_components["save_meta_checkbox"],
+        crawl_components["save_author_checkbox"],
+        crawl_components["exporter_dropdown"],
+        crawl_components["hf_repo_input"],
+        crawl_components["hf_token_input"],
+        crawl_components["start_button"],
+        crawl_components["result_output"],
+    ] + list(postproc_components.values()) + list(tag_translator_components.values())
+
+
 # WebUI 启动函数
-def launch_webui():
-    """Launch the Dataset Cat WebUI application."""
+def launch_webui(
+    host: str = "0.0.0.0",
+    port: int = 7860,
+    debug: bool = False,
+    share: bool = False
+) -> None:
+    """Launch the Dataset Cat WebUI application.
+    
+    Args:
+        host: Host address to bind the server to.
+        port: Port number to run the server on.
+        debug: Whether to enable debug mode.
+        share: Whether to create a public Gradio share link.
+    """
     locales = load_locales()
     process_data = _create_process_data_handler(locales)
     
@@ -432,21 +617,7 @@ def launch_webui():
                 crawl_components = _create_crawl_tab_components()
                 crawl_components["start_button"].click(
                     process_data,
-                    inputs=[
-                        crawl_components["src_dropdown"],
-                        crawl_components["tags_input"],
-                        crawl_components["limit_slider"],
-                        crawl_components["size_dropdown"],
-                        crawl_components["strict_checkbox"],
-                        crawl_components["actions_group"],
-                        crawl_components["output_dir_input"],
-                        crawl_components["save_meta_checkbox"],
-                        crawl_components["save_author_checkbox"],
-                        crawl_components["exporter_dropdown"],
-                        crawl_components["hf_repo_input"],
-                        crawl_components["hf_token_input"],
-                        current_lang,
-                    ],
+                    inputs=_get_crawl_tab_inputs(crawl_components, current_lang),
                     outputs=crawl_components["result_output"],
                 )
             
@@ -470,28 +641,19 @@ def launch_webui():
         language_selector.change(
             switch_language,
             inputs=[language_selector],
-            outputs=[
-                current_lang,
-                title,
-                language_selector,
-                crawl_components["src_dropdown"],
-                crawl_components["tags_input"],
-                crawl_components["limit_slider"],
-                crawl_components["size_dropdown"],
-                crawl_components["strict_checkbox"],
-                crawl_components["actions_group"],
-                crawl_components["output_dir_input"],
-                crawl_components["save_meta_checkbox"],
-                crawl_components["save_author_checkbox"],
-                crawl_components["exporter_dropdown"],
-                crawl_components["hf_repo_input"],
-                crawl_components["hf_token_input"],
-                crawl_components["start_button"],
-                crawl_components["result_output"],
-            ] + list(postproc_components.values()) + list(tag_translator_components.values()),
+            outputs=_get_language_switch_outputs(
+                current_lang, title, language_selector,
+                crawl_components, postproc_components, tag_translator_components
+            ),
         )
         
-        demo.launch(inbrowser=True)
+        demo.launch(
+            server_name=host,
+            server_port=port,
+            debug=debug,
+            share=share,
+            inbrowser=True
+        )
 
 
 if __name__ == "__main__":

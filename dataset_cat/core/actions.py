@@ -228,7 +228,7 @@ class ImageCompressionAction(ProcessAction):
 
         # Try JPEG compression
         if self.convert_to_jpeg or original_format.upper() == "JPEG":
-            compressed_image, final_quality, final_size = self._compress_jpeg(image)
+            compressed_image, final_quality, _ = self._compress_jpeg(image)
 
             # Update metadata
             new_meta = item.meta.copy()
